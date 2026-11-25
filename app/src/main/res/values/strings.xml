@@ -1,0 +1,32 @@
+<resources>
+    <string name="app_name">MoneyFlow</string>
+    <string name="brand_logo_description">MoneyFlow rising M brand mark</string>
+    <string name="sign_in_tagline">Personal salary cycle &amp; overtime earnings tracker</string>
+    <string name="sign_in_subtitle">India Standard Time · 24th–23rd cycles · Cloud synced across devices</string>
+    <string name="sign_in_google_button">Sign in with Google</string>
+    <string name="sign_in_security_note">Your records are isolated to your Google account in Cloud Firestore and ready for a future web companion.</string>
+    <string name="earned_through_today">Earned through today</string>
+    <string name="total_earned_cycle">Cycle total earned</string>
+    <string name="estimated_through_end">Estimated through %1$s</string>
+    <string name="badge_to_date">To date</string>
+    <string name="badge_completed">Completed</string>
+    <string name="badge_provisional">Provisional</string>
+    <string name="payday_label">Payday %1$s</string>
+    <string name="edit_today">Edit today</string>
+    <string name="edit_entry">Edit entry</string>
+    <string name="add_edit_date">Edit date</string>
+    <string name="daily_chart_title">Daily Earnings</string>
+    <string name="cycle_comparison_title">Salary Cycle Comparison</string>
+    <string name="cycle_breakdown_title">Cycle Breakdown</string>
+    <string name="legend_regular_pay">Regular Pay</string>
+    <string name="legend_holiday_premium">Sunday / Holiday Work</string>
+    <string name="legend_overtime">Overtime (OT)</string>
+    <string name="account_settings_title">Account &amp; Cloud Sync</string>
+    <string name="sign_out">Sign out</string>
+    <string name="save_entry">Save entry</string>
+    <string name="reset_to_default">Reset to default</string>
+    <string name="sync_status_live">Synced</string>
+    <string name="sync_status_syncing">Syncing…</string>
+    <string name="sync_status_error">Sync error</string>
+    <string name="retry">Retry</string>
+</resources>

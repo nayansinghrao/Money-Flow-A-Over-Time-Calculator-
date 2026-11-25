@@ -1,0 +1,6 @@
+{
+  "name": "MoneyFlow",
+  "description": "Personal Indian Rupee salary cycle and overtime earnings tracker with Firebase Auth and Cloud Firestore sync.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

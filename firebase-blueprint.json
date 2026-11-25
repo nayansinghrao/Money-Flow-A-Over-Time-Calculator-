@@ -1,0 +1,124 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Private per-user MoneyFlow settings and tracking start cycle stored at /users/{userId}.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Authenticated Firebase UID matching the document path userId."
+        },
+        "email": {
+          "type": "string",
+          "description": "Optional Google account email."
+        },
+        "displayName": {
+          "type": "string",
+          "description": "Optional Google account display name."
+        },
+        "trackingStartCycle": {
+          "type": "string",
+          "description": "ISO local date (YYYY-MM-24) representing the start date of the user's first tracked salary cycle."
+        },
+        "timezone": {
+          "type": "string",
+          "enum": ["Asia/Kolkata"],
+          "description": "Payroll timezone (India Standard Time)."
+        },
+        "schemaVersion": {
+          "type": "integer",
+          "description": "Schema version shared across Android and future web clients."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp set via FieldValue.serverTimestamp() on creation."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp set via FieldValue.serverTimestamp() on every write."
+        }
+      },
+      "required": [
+        "userId",
+        "trackingStartCycle",
+        "timezone",
+        "schemaVersion",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "DayEntry": {
+      "title": "DayEntry",
+      "description": "Single-date override record stored at /users/{userId}/dayEntries/{dateKey} where dateKey is local YYYY-MM-DD.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Authenticated Firebase UID matching parent userId."
+        },
+        "date": {
+          "type": "string",
+          "description": "Local India date in YYYY-MM-DD format matching the document ID."
+        },
+        "dayType": {
+          "type": "string",
+          "enum": ["OFFICE_DAY", "SUNDAY", "HOLIDAY"],
+          "description": "Primary day classification selector."
+        },
+        "workStatus": {
+          "type": "string",
+          "enum": ["FULL", "HALF", "LEAVE", "PAID_OFF"],
+          "description": "Attendance/work status valid for the chosen dayType."
+        },
+        "exitTime": {
+          "type": "string",
+          "description": "Optional actual exit time saved verbatim to the minute in 24h HH:mm format."
+        },
+        "overtimeEnabled": {
+          "type": "boolean",
+          "description": "Explicit overtime toggle; OT counts only when true on worked dates."
+        },
+        "note": {
+          "type": "string",
+          "description": "Optional user note (max 200 characters)."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp set via FieldValue.serverTimestamp() on creation."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp set via FieldValue.serverTimestamp() on every write."
+        }
+      },
+      "required": [
+        "userId",
+        "date",
+        "dayType",
+        "workStatus",
+        "overtimeEnabled",
+        "createdAt",
+        "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": {
+        "$ref": "#/entities/UserProfile"
+      },
+      "description": "Private user profile and tracking start configuration isolated by authenticated UID."
+    },
+    "/users/{userId}/dayEntries/{dateKey}": {
+      "schema": {
+        "$ref": "#/entities/DayEntry"
+      },
+      "description": "One document per user and YYYY-MM-DD local date storing explicit day overrides."
+    }
+  }
+}

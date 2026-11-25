@@ -1,0 +1,178 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global default-deny safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Reusable zero-trust helpers
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isValidDateKey(dateStr) {
+      return dateStr is string && dateStr.size() == 10 && dateStr.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$');
+    }
+
+    function isValidCycleStart(dateStr) {
+      return dateStr is string && dateStr.size() == 10 && dateStr.matches('^[0-9]{4}-[0-9]{2}-24$');
+    }
+
+    function isValidExitTime(timeStr) {
+      return timeStr is string && timeStr.size() == 5 && timeStr.matches('^([01][0-9]|2[0-3]):[0-5][0-9]$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidUserProfile(data, userId) {
+      return data.keys().hasAll([
+               'userId',
+               'trackingStartCycle',
+               'timezone',
+               'schemaVersion',
+               'createdAt',
+               'updatedAt'
+             ]) &&
+             data.keys().hasOnly([
+               'userId',
+               'email',
+               'displayName',
+               'trackingStartCycle',
+               'timezone',
+               'schemaVersion',
+               'createdAt',
+               'updatedAt'
+             ]) &&
+             data.userId is string &&
+             data.userId == userId &&
+             data.userId.size() <= 128 &&
+             isValidCycleStart(data.trackingStartCycle) &&
+             data.timezone is string &&
+             data.timezone == 'Asia/Kolkata' &&
+             data.schemaVersion is int &&
+             data.schemaVersion >= 1 &&
+             data.schemaVersion <= 10 &&
+             (!('email' in data) || (data.email is string && data.email.size() <= 254)) &&
+             (!('displayName' in data) || (data.displayName is string && data.displayName.size() <= 120)) &&
+             data.createdAt is timestamp &&
+             data.createdAt <= request.time &&
+             data.updatedAt is timestamp &&
+             data.updatedAt <= request.time;
+    }
+
+    function isValidWorkStatusForDayType(dayType, workStatus) {
+      return (dayType == 'OFFICE_DAY' && workStatus in ['FULL', 'HALF', 'LEAVE']) ||
+             (dayType in ['SUNDAY', 'HOLIDAY'] && workStatus in ['PAID_OFF', 'HALF', 'FULL']);
+    }
+
+    function isValidDayEntry(data, userId, dateKey) {
+      return data.keys().hasAll([
+               'userId',
+               'date',
+               'dayType',
+               'workStatus',
+               'overtimeEnabled',
+               'createdAt',
+               'updatedAt'
+             ]) &&
+             data.keys().hasOnly([
+               'userId',
+               'date',
+               'dayType',
+               'workStatus',
+               'overtimeEnabled',
+               'exitTime',
+               'note',
+               'createdAt',
+               'updatedAt'
+             ]) &&
+             data.userId is string &&
+             data.userId == userId &&
+             data.userId.size() <= 128 &&
+             data.date is string &&
+             data.date == dateKey &&
+             isValidDateKey(data.date) &&
+             data.dayType in ['OFFICE_DAY', 'SUNDAY', 'HOLIDAY'] &&
+             data.workStatus is string &&
+             isValidWorkStatusForDayType(data.dayType, data.workStatus) &&
+             data.overtimeEnabled is bool &&
+             (!('exitTime' in data) || isValidExitTime(data.exitTime)) &&
+             (!('note' in data) || (data.note is string && data.note.size() <= 200)) &&
+             data.createdAt is timestamp &&
+             data.createdAt <= request.time &&
+             data.updatedAt is timestamp &&
+             data.updatedAt <= request.time;
+    }
+
+    // Private per-user profile and tracking start configuration
+    match /users/{userId} {
+      allow get: if isOwner(userId) && isValidId(userId);
+      allow list: if false;
+
+      allow create: if isOwner(userId) &&
+                       isValidId(userId) &&
+                       isValidUserProfile(incoming(), userId);
+
+      allow update: if isOwner(userId) &&
+                       isValidId(userId) &&
+                       isValidUserProfile(incoming(), userId) &&
+                       incoming().userId == existing().userId &&
+                       incoming().createdAt == existing().createdAt &&
+                       (
+                         // Action: update tracking start cycle
+                         incoming().diff(existing()).affectedKeys().hasOnly(['trackingStartCycle', 'updatedAt']) ||
+                         // Action: sync profile metadata and/or tracking start
+                         incoming().diff(existing()).affectedKeys().hasOnly(['trackingStartCycle', 'email', 'displayName', 'updatedAt']) ||
+                         // Action: refresh Google profile metadata only
+                         incoming().diff(existing()).affectedKeys().hasOnly(['email', 'displayName', 'updatedAt'])
+                       );
+
+      allow delete: if isOwner(userId) && isValidId(userId);
+
+      // One document per user/date for explicit day overrides
+      match /dayEntries/{dateKey} {
+        allow get: if isOwner(userId) && isValidId(userId) && isValidDateKey(dateKey);
+        allow list: if isOwner(userId);
+
+        allow create: if isOwner(userId) &&
+                         isValidId(userId) &&
+                         isValidDateKey(dateKey) &&
+                         isValidDayEntry(incoming(), userId, dateKey);
+
+        allow update: if isOwner(userId) &&
+                         isValidId(userId) &&
+                         isValidDateKey(dateKey) &&
+                         isValidDayEntry(incoming(), userId, dateKey) &&
+                         incoming().userId == existing().userId &&
+                         incoming().date == existing().date &&
+                         incoming().createdAt == existing().createdAt &&
+                         incoming().diff(existing()).affectedKeys().hasOnly([
+                           'dayType',
+                           'workStatus',
+                           'overtimeEnabled',
+                           'exitTime',
+                           'note',
+                           'updatedAt'
+                         ]);
+
+        allow delete: if isOwner(userId) && isValidId(userId) && isValidDateKey(dateKey);
+      }
+    }
+  }
+}

@@ -25,8 +25,12 @@
     <string name="sign_out">Sign out</string>
     <string name="save_entry">Save entry</string>
     <string name="reset_to_default">Reset to default</string>
-    <string name="sync_status_live">Synced</string>
+    <string name="sync_status_connected">Connected</string>
     <string name="sync_status_syncing">Syncing…</string>
+    <string name="sync_status_offline">Offline</string>
     <string name="sync_status_error">Sync error</string>
+    <string name="sync_offline_notice">Offline — showing cached Cloud Firestore data. Any edits will sync automatically when reconnected.</string>
+    <string name="current_month_summary_title">%1$s Summary</string>
+    <string name="current_month_earned_label">Earned this month</string>
     <string name="retry">Retry</string>
 </resources>

@@ -173,3 +173,23 @@ data class CycleSummary(
     val isForecastProvisional: Boolean,
     val peakElapsedDays: List<DayEarnings>
 )
+
+data class MonthlySummary(
+    val year: Int,
+    val month: Int,
+    val monthLabel: String,
+    val monthStartDate: IndiaDate,
+    val monthEndDate: IndiaDate,
+    val trackedWindowStart: IndiaDate,
+    val trackedElapsedDaysCount: Int,
+    val remainingDaysInMonth: Int,
+    val syncedOverridesCount: Int,
+    val earnedRegularPay: RationalRupees,
+    val earnedHolidayPremium: RationalRupees,
+    val earnedOvertimePay: RationalRupees,
+    val earnedTotal: RationalRupees,
+    val earnedOvertimeBlocks: Int,
+    val remainingNormalPay: RationalRupees,
+    val estimatedMonthTotal: RationalRupees
+)
+

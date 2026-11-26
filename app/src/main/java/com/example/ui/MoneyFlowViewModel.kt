@@ -10,6 +10,7 @@ import com.example.data.extractFriendlyFirestoreError
 import com.example.domain.CycleSummary
 import com.example.domain.DayOverride
 import com.example.domain.IndiaDate
+import com.example.domain.MonthlySummary
 import com.example.domain.PayrollEngine
 import com.example.domain.SalaryCycle
 import com.google.firebase.firestore.FirebaseFirestoreException
@@ -27,8 +28,9 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 sealed interface SyncStatus {
+    data object Connected : SyncStatus
     data object Syncing : SyncStatus
-    data object Synced : SyncStatus
+    data object Offline : SyncStatus
     data class Error(val message: String) : SyncStatus
 }
 
@@ -38,6 +40,7 @@ data class MoneyFlowUiState(
     val trackingStartCycle: IndiaDate,
     val cycleSummaries: List<CycleSummary>,
     val selectedCycleSummary: CycleSummary,
+    val currentMonthSummary: MonthlySummary,
     val selectedDate: IndiaDate,
     val todayEntry: com.example.domain.DayEarnings,
     val overrides: Map<IndiaDate, DayOverride>,
@@ -59,7 +62,9 @@ private sealed interface RemoteDataState {
     data object Loading : RemoteDataState
     data class Loaded(
         val profile: UserProfileDoc?,
-        val entries: List<DayEntryDoc>
+        val entries: List<DayEntryDoc>,
+        val isFromCache: Boolean,
+        val hasPendingWrites: Boolean
     ) : RemoteDataState
     data class Failed(val message: String) : RemoteDataState
 }
@@ -95,8 +100,13 @@ class MoneyFlowViewModel(
             combine(
                 repository.observeProfile(currentUserId),
                 repository.observeDayEntries(currentUserId)
-            ) { profile, entries ->
-                RemoteDataState.Loaded(profile = profile, entries = entries) as RemoteDataState
+            ) { profileSnap, entriesSnap ->
+                RemoteDataState.Loaded(
+                    profile = profileSnap.data,
+                    entries = entriesSnap.data,
+                    isFromCache = profileSnap.isFromCache || entriesSnap.isFromCache,
+                    hasPendingWrites = profileSnap.hasPendingWrites || entriesSnap.hasPendingWrites
+                ) as RemoteDataState
             }.catch { error ->
                 val firestoreError = generateSequence(error) { it.cause }
                     .filterIsInstance<FirebaseFirestoreException>()
@@ -171,9 +181,18 @@ class MoneyFlowViewModel(
         val syncStatus = when {
             remote is RemoteDataState.Failed -> SyncStatus.Error(remote.message)
             local.profileInitError != null -> SyncStatus.Error(local.profileInitError)
+            local.isSaving -> SyncStatus.Syncing
             remote is RemoteDataState.Loading -> SyncStatus.Syncing
-            else -> SyncStatus.Synced
+            remote is RemoteDataState.Loaded && remote.hasPendingWrites -> SyncStatus.Syncing
+            remote is RemoteDataState.Loaded && remote.isFromCache -> SyncStatus.Offline
+            else -> SyncStatus.Connected
         }
+
+        val currentMonthSummary = PayrollEngine.calculateCurrentMonth(
+            today = today,
+            trackingStartCycleStart = profileStart,
+            overrides = overrides
+        )
 
         MoneyFlowUiState(
             today = today,
@@ -181,6 +200,7 @@ class MoneyFlowViewModel(
             trackingStartCycle = profileStart,
             cycleSummaries = summaries,
             selectedCycleSummary = selectedSummary,
+            currentMonthSummary = currentMonthSummary,
             selectedDate = effectiveSelectedDate,
             todayEntry = todayEntry,
             overrides = overrides,
@@ -211,12 +231,18 @@ class MoneyFlowViewModel(
         val today = todayProvider()
         val currentCycle = PayrollEngine.cycleForDate(today)
         val summary = PayrollEngine.calculateCycle(currentCycle, emptyMap(), today)
+        val monthSummary = PayrollEngine.calculateCurrentMonth(
+            today = today,
+            trackingStartCycleStart = currentCycle.startDate,
+            overrides = emptyMap()
+        )
         return MoneyFlowUiState(
             today = today,
             currentCycle = currentCycle,
             trackingStartCycle = currentCycle.startDate,
             cycleSummaries = listOf(summary),
             selectedCycleSummary = summary,
+            currentMonthSummary = monthSummary,
             selectedDate = today,
             todayEntry = PayrollEngine.calculateDay(today, null, today),
             overrides = emptyMap(),

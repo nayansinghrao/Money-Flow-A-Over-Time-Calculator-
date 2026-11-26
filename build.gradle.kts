@@ -6,3 +6,17 @@ plugins {
   alias(libs.plugins.secrets) apply false
   alias(libs.plugins.google.services) apply false
 }
+
+// Keep a phone-installable copy of the latest successful debug build.
+val exportMoneyFlowApk = tasks.register<Copy>("exportMoneyFlowApk") {
+    dependsOn(":app:packageDebug")
+    from(layout.projectDirectory.file("app/build/outputs/apk/debug/app-debug.apk"))
+    into(layout.projectDirectory.dir("APK"))
+    rename { "MoneyFlow.apk" }
+}
+
+project(":app") {
+    tasks.matching { it.name == "assembleDebug" }.configureEach {
+        dependsOn(exportMoneyFlowApk)
+    }
+}

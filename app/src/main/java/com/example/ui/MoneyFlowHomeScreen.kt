@@ -1,5 +1,11 @@
 package com.example.ui
 
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -45,7 +51,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -55,11 +63,14 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.R
 import com.example.domain.IndiaDate
 import com.example.ui.components.AccountAndSyncSheet
+import com.example.ui.components.CurrentMonthSummaryCard
 import com.example.ui.components.CycleBreakdownRingCard
 import com.example.ui.components.CycleComparisonCard
 import com.example.ui.components.DailyEarningsChartCard
 import com.example.ui.components.DayEditorSheet
 import com.example.ui.components.HeroSummaryCard
+import com.example.ui.theme.AmberOvertime
+import com.example.ui.theme.AmberOvertimeContainer
 import com.example.ui.theme.CharcoalBackground
 import com.example.ui.theme.CharcoalOutline
 import com.example.ui.theme.CharcoalSurface
@@ -169,6 +180,53 @@ fun MoneyFlowHomeScreen(
                     }
                 }
 
+                // Explicit Offline Banner when serving cached Firestore snapshots
+                if (state.syncStatus is SyncStatus.Offline) {
+                    item(key = "sync_offline_banner") {
+                        Surface(
+                            shape = RoundedCornerShape(16.dp),
+                            color = AmberOvertimeContainer,
+                            border = BorderStroke(1.dp, AmberOvertime.copy(alpha = 0.5f)),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("sync_offline_banner")
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.CloudOff,
+                                        contentDescription = "Offline cached mode",
+                                        tint = AmberOvertime,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(10.dp))
+                                    Text(
+                                        text = stringResource(id = R.string.sync_offline_notice),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = TextPrimary
+                                    )
+                                }
+                                TextButton(onClick = { viewModel.retrySync() }) {
+                                    Text(
+                                        text = stringResource(id = R.string.retry),
+                                        color = AmberOvertime,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
                 // Action feedback banner (save / revert / write error)
                 if (state.bannerMessage != null) {
                     item(key = "action_banner") {
@@ -231,6 +289,14 @@ fun MoneyFlowHomeScreen(
                         todayEntry = state.todayEntry,
                         onEditTodayClick = { viewModel.openTodayEditor() },
                         onPickDateClick = { viewModel.setShowDatePickerDialog(true) }
+                    )
+                }
+
+                // Current Calendar Month Earnings Summary (live from Cloud Firestore)
+                item(key = "current_month_summary") {
+                    CurrentMonthSummaryCard(
+                        monthlySummary = state.currentMonthSummary,
+                        syncStatus = state.syncStatus
                     )
                 }
 
@@ -364,16 +430,41 @@ private fun MoneyFlowHeaderBar(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
+            val infiniteTransition = rememberInfiniteTransition(label = "sync_status_anim")
+            val spinAngle by infiniteTransition.animateFloat(
+                initialValue = 0f,
+                targetValue = 360f,
+                animationSpec = infiniteRepeatable(
+                    animation = tween(durationMillis = 1100, easing = LinearEasing),
+                    repeatMode = RepeatMode.Restart
+                ),
+                label = "sync_spin"
+            )
+            val pulseAlpha by infiniteTransition.animateFloat(
+                initialValue = 0.45f,
+                targetValue = 1f,
+                animationSpec = infiniteRepeatable(
+                    animation = tween(durationMillis = 1200, easing = LinearEasing),
+                    repeatMode = RepeatMode.Reverse
+                ),
+                label = "connected_pulse"
+            )
+
             val (icon, tint, label) = when (syncStatus) {
-                is SyncStatus.Synced -> Triple(
+                is SyncStatus.Connected -> Triple(
                     Icons.Rounded.CloudDone,
                     MintHighlight,
-                    stringResource(id = R.string.sync_status_live)
+                    stringResource(id = R.string.sync_status_connected)
                 )
                 is SyncStatus.Syncing -> Triple(
                     Icons.Rounded.Sync,
-                    TextSecondary,
+                    AmberOvertime,
                     stringResource(id = R.string.sync_status_syncing)
+                )
+                is SyncStatus.Offline -> Triple(
+                    Icons.Rounded.CloudOff,
+                    AmberOvertime,
+                    stringResource(id = R.string.sync_status_offline)
                 )
                 is SyncStatus.Error -> Triple(
                     Icons.Rounded.CloudOff,
@@ -385,7 +476,7 @@ private fun MoneyFlowHeaderBar(
             Surface(
                 shape = RoundedCornerShape(999.dp),
                 color = CharcoalSurface,
-                border = BorderStroke(1.dp, tint.copy(alpha = 0.4f)),
+                border = BorderStroke(1.dp, tint.copy(alpha = 0.48f)),
                 modifier = Modifier
                     .clip(RoundedCornerShape(999.dp))
                     .clickable(onClick = onSyncBadgeClick)
@@ -395,13 +486,29 @@ private fun MoneyFlowHeaderBar(
                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(
-                        imageVector = icon,
-                        contentDescription = label,
-                        tint = tint,
-                        modifier = Modifier.size(14.dp)
-                    )
-                    Spacer(modifier = Modifier.width(5.dp))
+                    if (syncStatus is SyncStatus.Connected) {
+                        Box(
+                            modifier = Modifier
+                                .size(7.dp)
+                                .alpha(pulseAlpha)
+                                .clip(CircleShape)
+                                .background(MintHighlight)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                    } else {
+                        Icon(
+                            imageVector = icon,
+                            contentDescription = label,
+                            tint = tint,
+                            modifier = Modifier
+                                .size(14.dp)
+                                .then(
+                                    if (syncStatus is SyncStatus.Syncing) Modifier.rotate(spinAngle)
+                                    else Modifier
+                                )
+                        )
+                        Spacer(modifier = Modifier.width(5.dp))
+                    }
                     Text(
                         text = label,
                         style = MaterialTheme.typography.labelSmall,

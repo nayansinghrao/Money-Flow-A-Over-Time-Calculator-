@@ -218,4 +218,68 @@ object PayrollEngine {
             peakElapsedDays = peakElapsedDays
         )
     }
+
+    /**
+     * Calculates earnings for the current India calendar month (`1st..lastDay` of [today]'s month),
+     * strictly honoring the effective tracking start boundary so dates before tracking began
+     * are never fabricated, and excluding future dates from earned actuals.
+     */
+    fun calculateCurrentMonth(
+        today: IndiaDate,
+        trackingStartCycleStart: IndiaDate,
+        overrides: Map<IndiaDate, DayOverride>
+    ): MonthlySummary {
+        val monthStart = IndiaDate(today.year, today.month, 1)
+        val monthEnd = IndiaDate(today.year, today.month, IndiaDate.lengthOfMonth(today.year, today.month))
+
+        val earliestOverrideCycleStart = overrides.keys.minOrNull()?.let { cycleForDate(it).startDate }
+        val normalizedTrackingStart = cycleForDate(trackingStartCycleStart).startDate
+        val effectiveTrackingStart = listOfNotNull(
+            normalizedTrackingStart,
+            earliestOverrideCycleStart
+        ).minOrNull() ?: cycleForDate(today).startDate
+
+        val trackedWindowStart = when {
+            effectiveTrackingStart > today -> today
+            effectiveTrackingStart > monthStart -> effectiveTrackingStart
+            else -> monthStart
+        }
+
+        val elapsedDaysCount = (trackedWindowStart.daysUntil(today) + 1L).toInt().coerceAtLeast(0)
+        val elapsedBreakdowns = List(elapsedDaysCount) { offset ->
+            val date = trackedWindowStart.plusDays(offset.toLong())
+            calculateDay(date = date, override = overrides[date], today = today)
+        }
+
+        val remainingDaysInMonth = (today.daysUntil(monthEnd)).toInt().coerceAtLeast(0)
+        val syncedOverridesCount = elapsedBreakdowns.count { it.hasOverride }
+
+        val earnedRegular = elapsedBreakdowns.map { it.regularPay }.sumRupees()
+        val earnedHoliday = elapsedBreakdowns.map { it.holidayPremium }.sumRupees()
+        val earnedOvertime = elapsedBreakdowns.map { it.overtimePay }.sumRupees()
+        val earnedTotal = earnedRegular + earnedHoliday + earnedOvertime
+        val earnedOtBlocks = elapsedBreakdowns.sumOf { it.overtimeBlocks }
+
+        val remainingNormalPay = RationalRupees.RUPEES_500 * remainingDaysInMonth
+        val estimatedMonthTotal = earnedTotal + remainingNormalPay
+
+        return MonthlySummary(
+            year = today.year,
+            month = today.month,
+            monthLabel = today.monthYearShort(),
+            monthStartDate = monthStart,
+            monthEndDate = monthEnd,
+            trackedWindowStart = trackedWindowStart,
+            trackedElapsedDaysCount = elapsedBreakdowns.size,
+            remainingDaysInMonth = remainingDaysInMonth,
+            syncedOverridesCount = syncedOverridesCount,
+            earnedRegularPay = earnedRegular,
+            earnedHolidayPremium = earnedHoliday,
+            earnedOvertimePay = earnedOvertime,
+            earnedTotal = earnedTotal,
+            earnedOvertimeBlocks = earnedOtBlocks,
+            remainingNormalPay = remainingNormalPay,
+            estimatedMonthTotal = estimatedMonthTotal
+        )
+    }
 }

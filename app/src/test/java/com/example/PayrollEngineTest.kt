@@ -372,4 +372,51 @@ class PayrollEngineTest {
         assertEquals("₹1,25,450.00", RationalRupees.of(125450).formatInr(alwaysShowPaise = true))
         assertEquals("₹15,527.78", (RationalRupees.of(15500) + RationalRupees.OT_BLOCK_RATE).formatInr())
     }
+
+    @Test
+    fun currentMonthSummary_respectsTrackingStartAndExcludesFutureDays() {
+        val today = IndiaDate(2026, 11, 25) // Nov 2026 has 30 days (5 remaining: Nov 26..30)
+        val overrides = mapOf(
+            IndiaDate(2026, 11, 25) to DayOverride(
+                date = IndiaDate(2026, 11, 25),
+                dayType = DayType.OFFICE_DAY,
+                workStatus = WorkStatus.FULL,
+                exitTime = ExitTime(19, 0),
+                overtimeEnabled = true
+            ),
+            // Future date in same month must NOT count toward earned
+            IndiaDate(2026, 11, 28) to DayOverride(
+                date = IndiaDate(2026, 11, 28),
+                dayType = DayType.HOLIDAY,
+                workStatus = WorkStatus.FULL,
+                exitTime = ExitTime(20, 0),
+                overtimeEnabled = true
+            )
+        )
+
+        // Case 1: Default tracking starts at current cycle (2026-11-24) -> only Nov 24 & Nov 25 elapsed
+        val defaultStartSummary = PayrollEngine.calculateCurrentMonth(
+            today = today,
+            trackingStartCycleStart = IndiaDate(2026, 11, 24),
+            overrides = overrides
+        )
+        assertEquals(IndiaDate(2026, 11, 24), defaultStartSummary.trackedWindowStart)
+        assertEquals(2, defaultStartSummary.trackedElapsedDaysCount)
+        assertEquals(5, defaultStartSummary.remainingDaysInMonth)
+        assertEquals(1, defaultStartSummary.syncedOverridesCount)
+        assertEquals(1027_78L, defaultStartSummary.earnedTotal.toPaise())
+        assertEquals(3527_78L, defaultStartSummary.estimatedMonthTotal.toPaise()) // 1027.78 + 5*500
+
+        // Case 2: Tracking started earlier (2026-10-24) -> full calendar month from Nov 1..25 (25 days)
+        val fullMonthSummary = PayrollEngine.calculateCurrentMonth(
+            today = today,
+            trackingStartCycleStart = IndiaDate(2026, 10, 24),
+            overrides = overrides
+        )
+        assertEquals(IndiaDate(2026, 11, 1), fullMonthSummary.trackedWindowStart)
+        assertEquals(25, fullMonthSummary.trackedElapsedDaysCount)
+        assertEquals(5, fullMonthSummary.remainingDaysInMonth)
+        assertEquals(12527_78L, fullMonthSummary.earnedTotal.toPaise()) // 25*500 + 27.78
+        assertEquals(15027_78L, fullMonthSummary.estimatedMonthTotal.toPaise()) // 12527.78 + 5*500
+    }
 }

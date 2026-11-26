@@ -12,6 +12,7 @@ import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreException
+import com.google.firebase.firestore.MetadataChanges
 import com.google.firebase.firestore.snapshots
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
@@ -21,10 +22,17 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.tasks.await
 
+data class SnapshotWithMetadata<T>(
+    val data: T,
+    val isFromCache: Boolean,
+    val hasPendingWrites: Boolean
+)
+
 /**
  * Single source of truth for MoneyFlow cloud persistence in Cloud Firestore.
  * Always connects to the provisioned named database ID (`R.string.firestore_database_id`),
- * isolates all documents under `/users/{uid}`, and listens in real time for remote edits.
+ * isolates all documents under `/users/{uid}`, and listens in real time for remote edits
+ * including snapshot metadata changes to report true Connected / Syncing / Offline status.
  */
 class MoneyFlowRepository(
     private val db: FirebaseFirestore,
@@ -46,17 +54,22 @@ class MoneyFlowRepository(
         return currentUid
     }
 
-    fun observeProfile(userId: String): Flow<UserProfileDoc?> = flow {
+    fun observeProfile(userId: String): Flow<SnapshotWithMetadata<UserProfileDoc?>> = flow {
         val uid = requireAuthorizedUserId(userId)
         val path = "users/$uid"
         emitAll(
             db.collection("users").document(uid)
-                .snapshots()
+                .snapshots(MetadataChanges.INCLUDE)
                 .map { snapshot ->
-                    if (!snapshot.exists()) null
+                    val doc = if (!snapshot.exists()) null
                     else snapshot.toObject(
                         UserProfileDoc::class.java,
                         DocumentSnapshot.ServerTimestampBehavior.ESTIMATE
+                    )
+                    SnapshotWithMetadata(
+                        data = doc,
+                        isFromCache = snapshot.metadata.isFromCache,
+                        hasPendingWrites = snapshot.metadata.hasPendingWrites()
                     )
                 }
                 .catch { error ->
@@ -73,16 +86,20 @@ class MoneyFlowRepository(
         )
     }
 
-    fun observeDayEntries(userId: String): Flow<List<DayEntryDoc>> = flow {
+    fun observeDayEntries(userId: String): Flow<SnapshotWithMetadata<List<DayEntryDoc>>> = flow {
         val uid = requireAuthorizedUserId(userId)
         val path = "users/$uid/dayEntries"
         emitAll(
             db.collection("users").document(uid).collection("dayEntries")
-                .snapshots()
+                .snapshots(MetadataChanges.INCLUDE)
                 .map { querySnapshot ->
-                    querySnapshot.toObjects(
-                        DayEntryDoc::class.java,
-                        DocumentSnapshot.ServerTimestampBehavior.ESTIMATE
+                    SnapshotWithMetadata(
+                        data = querySnapshot.toObjects(
+                            DayEntryDoc::class.java,
+                            DocumentSnapshot.ServerTimestampBehavior.ESTIMATE
+                        ),
+                        isFromCache = querySnapshot.metadata.isFromCache,
+                        hasPendingWrites = querySnapshot.metadata.hasPendingWrites()
                     )
                 }
                 .catch { error ->

@@ -45,6 +45,7 @@ import com.example.domain.IndiaDate
 import com.example.domain.PayrollEngine
 import com.example.domain.SalaryCycle
 import com.example.ui.SyncStatus
+import com.example.ui.theme.AmberOvertime
 import com.example.ui.theme.CharcoalOutline
 import com.example.ui.theme.CharcoalSurface
 import com.example.ui.theme.CharcoalSurfaceElevated
@@ -121,15 +122,20 @@ fun AccountAndSyncSheet(
                     Spacer(modifier = Modifier.height(10.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         val (icon, tint, label) = when (syncStatus) {
-                            is SyncStatus.Synced -> Triple(
+                            is SyncStatus.Connected -> Triple(
                                 Icons.Rounded.CloudDone,
                                 MintHighlight,
-                                "Live Cloud Firestore sync active"
+                                "Connected · live Cloud Firestore sync active"
                             )
                             is SyncStatus.Syncing -> Triple(
                                 Icons.Rounded.Sync,
-                                TextSecondary,
-                                "Connecting to Cloud Firestore…"
+                                AmberOvertime,
+                                "Syncing changes with Cloud Firestore…"
+                            )
+                            is SyncStatus.Offline -> Triple(
+                                Icons.Rounded.CloudOff,
+                                AmberOvertime,
+                                "Offline · reading local cache until reconnected"
                             )
                             is SyncStatus.Error -> Triple(
                                 Icons.Rounded.CloudOff,
@@ -150,16 +156,17 @@ fun AccountAndSyncSheet(
                             color = tint
                         )
                     }
-                    if (syncStatus is SyncStatus.Error) {
+                    if (syncStatus is SyncStatus.Error || syncStatus is SyncStatus.Offline) {
+                        val actionTint = if (syncStatus is SyncStatus.Error) ErrorCoral else AmberOvertime
                         Spacer(modifier = Modifier.height(10.dp))
                         OutlinedButton(
                             onClick = onRetrySync,
                             shape = RoundedCornerShape(12.dp),
-                            border = BorderStroke(1.dp, ErrorCoral.copy(alpha = 0.6f))
+                            border = BorderStroke(1.dp, actionTint.copy(alpha = 0.6f))
                         ) {
                             Text(
                                 text = stringResource(id = R.string.retry),
-                                color = ErrorCoral
+                                color = actionTint
                             )
                         }
                     }

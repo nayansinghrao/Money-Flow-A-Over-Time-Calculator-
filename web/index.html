@@ -1,0 +1,10 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#101412"><meta name="description" content="Track daily pay, attendance and overtime with MoneyFlow."><title>MoneyFlow · Earnings</title><link rel="icon" href="./mark.svg" type="image/svg+xml"><link rel="manifest" href="./app.webmanifest"><link rel="stylesheet" href="./style.css"></head>
+<body><a class="skip" href="#content">Skip to earnings</a>
+<div class="layout"><aside class="rail"><div class="wordmark"><img src="./mark.svg" alt=""><span>Money<span>Flow</span></span></div><nav aria-label="Workspace"><button data-view="overview"><i data-i="overview"></i>Overview</button><button data-view="log"><i data-i="calendar"></i>Day log</button><button data-view="month"><i data-i="report"></i>Monthly summary</button></nav><div class="railfoot"><button data-act="account"><i data-i="user"></i>Account &amp; sync</button></div></aside>
+<main id="content"><div class="mobile-brand"><div class="wordmark"><img src="./mark.svg" alt=""><span>Money<span>Flow</span></span></div><button class="iconbtn" aria-label="Account and sync" data-act="account"><i data-i="user"></i></button></div>
+<header class="top"><div><div class="eyebrow" id="daystamp"></div><h1 id="pageTitle">Earnings overview</h1></div><button class="primary" data-act="today"><i data-i="plus"></i>Edit today</button></header>
+<div id="feedback" role="status"></div><div id="view"></div></main></div>
+<nav class="mobile-nav" aria-label="Mobile navigation"><button data-view="overview"><i data-i="overview"></i>Overview</button><button data-view="log"><i data-i="calendar"></i>Day log</button><button data-view="month"><i data-i="report"></i>Monthly</button></nav>
+<dialog id="dialog"><div class="modalhead"><h2 id="dialogTitle"></h2><button class="iconbtn" data-act="close" aria-label="Close"><i data-i="close"></i></button></div><div id="dialogBody"></div></dialog>
+<div id="toast" role="status"></div><script type="module" src="./main.mjs"></script></body></html>
